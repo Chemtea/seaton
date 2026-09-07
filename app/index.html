@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; connect-src 'none'"><title>자리온</title><link rel="stylesheet" href="styles.css"></head><body>
+<div id="seaton-private" class="sg-public" aria-label="자리온 자리 배치">
+  
+  <section class="sg-app">
+    <header class="sg-header">
+      <div><button type="button" class="sg-brand sp-settings-open" aria-label="설정">자리온</button><div class="sg-small app-version"></div></div>
+      <div class="sg-actions"><button type="button" class="sg-print-open" hidden>인쇄 미리보기</button><button type="button" class="sg-public-toggle" aria-pressed="false" hidden>학생 공개 화면</button></div>
+    </header>
+    <div class="sg-work">
+      <aside class="sg-sidebar" hidden>
+        <label class="sg-names-label" for="app-class-name">학급 이름</label>
+        <input id="app-class-name" type="text" maxlength="80" value="우리 반" class="app-class-input">
+        <div class="sg-actions app-file-actions"><button type="button" class="app-save">파일 저장</button><button type="button" class="app-open">불러오기</button></div>
+        <div class="app-save-status sg-small" aria-live="polite">자동 저장</div>
+        <label class="sg-names-label" for="sg-names">이름 붙여넣기</label>
+        <textarea id="sg-names" spellcheck="false" aria-describedby="sg-import-hint"></textarea>
+        <div id="sg-import-hint" class="sg-small">줄바꿈 · 쉼표 · 탭으로 구분 · 최대 60명</div>
+        <div class="sg-import-count sg-small" aria-live="polite"></div>
+        <button type="button" class="sg-import sg-primary sg-full">이 명단으로 배치</button>
+        <button type="button" class="app-append sg-full">명단에 추가</button>
+        <div class="sg-import-error sg-error" role="alert"></div>
+        <details class="sg-settings">
+          <summary>배치 설정 <span class="sg-small">필요할 때 펼치기</span></summary>
+          <div class="sg-tabs" role="tablist" aria-label="배치 방식">
+            <button type="button" role="tab" id="sg-line-tab" aria-controls="sg-line-panel" aria-selected="true" data-kind="lines">줄 배치</button>
+            <button type="button" role="tab" id="sg-group-tab" aria-controls="sg-group-panel" aria-selected="false" data-kind="groups">모둠</button>
+          </div>
+          <div id="sg-line-panel" role="tabpanel" aria-labelledby="sg-line-tab">
+            <label class="sg-field" for="sg-line-count">줄 수 <select id="sg-line-count"><option value="4">4줄</option><option value="5">5줄</option><option value="6">6줄</option><option value="7">7줄</option></select></label>
+            <div class="sg-small">칠판에서 앞뒤로 이어지는 세로줄</div>
+            <div class="sg-counts sg-line-counts"></div>
+          </div>
+          <div id="sg-group-panel" role="tabpanel" aria-labelledby="sg-group-tab" hidden>
+            <label class="sg-field" for="sg-group-count">모둠 수 <select id="sg-group-count"><option value="1">1모둠</option><option value="2">2모둠</option><option value="3">3모둠</option><option value="4">4모둠</option><option value="5">5모둠</option><option value="6" selected>6모둠</option><option value="7">7모둠</option><option value="8">8모둠</option><option value="9">9모둠</option><option value="10">10모둠</option><option value="11">11모둠</option><option value="12">12모둠</option></select></label>
+            <label class="sg-field" for="sg-group-columns">가로 모둠 수 <select id="sg-group-columns"><option value="1">1모둠씩</option><option value="2">2모둠씩</option><option value="3" selected>3모둠씩</option></select></label>
+            <div class="sg-small sg-arrangement" aria-live="polite">가로 3모둠 × 세로 2단</div>
+            <div class="sg-counts sg-group-counts"></div>
+            <div class="sg-small">5인 모둠: 2 + 2 + 옆 중앙 1자리</div>
+            <label class="sg-range-label" for="sg-inner-gap">모둠 안 책상 간격 <output id="sg-inner-value">8</output></label>
+            <input id="sg-inner-gap" type="range" min="0" max="22" value="8" step="1">
+            <label class="sg-range-label" for="sg-outer-gap">모둠 사이 간격 <output id="sg-outer-value">70</output></label>
+            <input id="sg-outer-gap" type="range" min="24" max="120" value="70" step="1">
+          </div>
+          <div class="sg-sum" aria-live="polite"></div>
+          <div class="sg-small">다음 배치 설정 · 적용하면 다시 정렬</div>
+          <button type="button" class="sg-apply sg-primary sg-full">줄 배치 적용</button>
+          <div class="sg-layout-error sg-error" role="alert"></div>
+        </details>
+        <details class="sr-teacher">
+          <summary>교사용 준비 배치</summary>
+          <button type="button" class="sr-remember sg-full">자리별 학생 지정</button>
+          <div class="sr-preset-status sg-small" aria-live="polite">준비 배치 없음</div>
+          <div class="sg-actions"><button type="button" class="sr-clear" disabled>지정 해제</button></div>
+          <div class="sg-small">책상 위치는 유지 · 학생 배정만 별도로 준비</div>
+          <div class="sg-small">Ctrl + 섞기 / 결과 발표: 저장한 학생 배정 사용</div>
+          <div class="sg-small">준비 배정은 PIN으로 보호하여 저장합니다.</div>
+          <div class="sr-teacher-error sg-error" role="alert"></div>
+        </details>
+        <details class="sr-settings" open>
+          <summary>결과 발표 설정</summary>
+          <label class="sg-field" for="sr-rounds">섞기 횟수 <input id="sr-rounds" type="number" min="1" max="15" step="1" value="7" style="width:65px"></label>
+          <div class="sg-small">마지막 횟수에 최종 결과 공개</div>
+          <label class="sr-sound-label"><input id="sr-sound" type="checkbox"> 효과음 켜기</label>
+          <label class="sr-sound-label"><input id="sr-gentle" type="checkbox"> 움직임 줄이기</label>
+        </details>
+        <details class="sr-settings app-settings">
+          <summary>화면 · 업데이트</summary>
+          <div class="sg-actions"><button type="button" class="app-display">학생 공개 창 열기</button><button type="button" class="app-fullscreen">전체 화면</button></div>
+          <div class="app-update-status sg-small" aria-live="polite">업데이트 확인 준비</div>
+          <div class="sg-actions"><button type="button" class="app-update-check">업데이트 확인</button><button type="button" class="app-update-install" hidden>저장 후 업데이트</button></div>
+        </details>
+      </aside>
+      <main class="sg-main">
+        <div class="sg-top"><div><h2 class="app-class-heading">우리 반</h2><div class="sg-population sg-small"></div></div><div class="sg-actions app-reveal-actions"><button type="button" class="sg-shuffle">다시 섞기</button><button type="button" class="sr-reveal sg-primary">자리 결과 발표</button></div></div>
+        <div class="sg-editor-tools" hidden>
+          <div class="sg-tools" aria-label="이동 방식">
+            <button type="button" class="sg-mode-student" aria-pressed="true">학생 이동</button>
+            <button type="button" class="sg-mode-desk" aria-pressed="false">책상 이동</button>
+            <button type="button" class="sg-mode-group" aria-pressed="false">모둠 이동</button>
+            <span class="sg-mode-hint sg-small">이름을 끌거나 두 자리를 클릭</span>
+          </div>
+          <div class="sg-tools" aria-label="책상 편집">
+            <button type="button" class="sg-add">책상 +</button>
+            <button type="button" class="app-add-temp">임시 자리 +</button>
+            <button type="button" class="sg-delete" disabled>선택 책상 삭제</button>
+            <button type="button" class="sg-clear-empty">빈 책상만 삭제</button>
+            <button type="button" class="sg-undo" disabled>되돌리기</button>
+          </div>
+        </div>
+        <div class="sg-tools" aria-label="보는 방향">
+          <button type="button" class="sg-view-student" aria-pressed="true">학생용 보기</button>
+          <button type="button" class="sg-view-teacher" aria-pressed="false">교탁용 보기</button>
+        </div>
+        <div class="sg-room sg-editor-room" aria-label="자리 배치. 교탁 양옆 더하기 표시는 임시 자리입니다."></div>
+        <div class="sg-status" aria-live="polite" hidden></div>
+        <div class="sg-pending" hidden><div class="sg-small sg-pending-heading"></div><div class="sg-pending-list"></div></div>
+      </main>
+    </div>
+    <section class="sg-print" aria-label="인쇄" hidden>
+      <div class="sg-top"><h2>저장 · 인쇄</h2><button type="button" class="sg-print-close">배치 화면으로</button></div>
+      <div class="sg-tools"><label for="sg-print-type">인쇄 대상 <select id="sg-print-type"><option value="both">학생용 + 교탁용</option><option value="student">학생용</option><option value="teacher">교탁용</option></select></label></div>
+      <div class="sg-tools"><label><input type="checkbox" id="app-landscape" checked> A4 가로</label><button type="button" class="app-print-now sg-primary">인쇄</button><button type="button" class="app-pdf">PDF 저장</button><button type="button" class="app-png">PNG 저장</button></div>
+      <div class="sg-print-warning sg-error" role="alert"></div>
+      <div class="sg-print-pages"></div>
+    </section>
+    <section class="sp-auth" aria-label="설정" hidden>
+      <form class="sp-auth-form">
+        <h2>설정</h2>
+        <p class="sp-auth-hint sg-small"></p>
+        <label class="sp-pin-label" for="sp-pin">PIN<input id="sp-pin" type="password" inputmode="numeric" minlength="6" maxlength="12" autocomplete="off" required></label>
+        <label class="sp-pin-confirm-label sp-pin-label" for="sp-pin-confirm">PIN 다시 입력<input id="sp-pin-confirm" type="password" inputmode="numeric" maxlength="12" autocomplete="off"></label>
+        <div class="sp-auth-error sg-error" role="alert"></div>
+        <div class="sg-actions"><button type="submit" class="sg-primary">확인</button><button type="button" class="sp-auth-cancel">취소</button></div>
+      </form>
+    </section>
+    <section class="sp-private" aria-label="교사용 학생 배정" hidden>
+      <div class="sg-top"><div><h2>자리별 학생 지정</h2><div class="sg-small">책상 고정 · 이름 선택 시 이미 배정된 학생은 서로 교환</div></div><div class="sg-actions"><button type="button" class="sp-save sg-primary">준비 배정 저장</button><button type="button" class="sp-discard">편집으로</button><button type="button" class="sp-lock">잠그고 공개</button></div></div>
+      <div class="sp-draft-status sg-small" aria-live="polite"></div>
+      <div class="sp-draft-error sg-error" role="alert"></div>
+      <div class="sp-draft-layout"><div class="sg-room sp-private-room" aria-label="번호가 표시된 고정 책상"></div><div class="sp-assignments" aria-label="자리별 학생 선택"></div></div>
+    </section>
+    <section class="sr-stage" aria-label="자리 결과 발표" hidden>
+      <div class="sr-stage-head"><span class="sr-class">우리 반</span><span class="sr-round" aria-live="polite"></span></div>
+      <div class="sr-title">자리 결과 발표</div>
+      <div class="sr-phase" aria-live="polite">준비</div>
+      <div class="sr-count" aria-hidden="true"></div>
+      <div class="sr-meter" aria-hidden="true"><div class="sr-meter-fill"></div></div>
+      <div class="sr-scene"><div class="sr-rays" aria-hidden="true"></div><div class="sg-room sr-stage-room" aria-label="공개할 자리 배치"></div><div class="sr-particles" aria-hidden="true"></div></div>
+      <div class="sr-stage-actions"><button type="button" class="sr-skip">바로 공개</button><button type="button" class="sr-cancel">발표 취소</button><button type="button" class="sr-close" hidden>자리표 보기</button></div>
+    </section>
+  </section>
+  
+  
+</div>
+
+<script src="renderer.js"></script></body></html>

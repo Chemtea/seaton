@@ -1,0 +1,16 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const next = process.argv[2];
+const pkgPath = path.join(root, 'package.json');
+const lockPath = path.join(root, 'package-lock.json');
+const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+if (!/^\d+\.\d+\.\d+$/.test(next || '')) throw new Error('사용법: npm run release:version -- 1.0.1');
+const compare = (a, b) => { const aa = a.split('.').map(Number), bb = b.split('.').map(Number); for (let i = 0; i < 3; i++) if (aa[i] !== bb[i]) return aa[i] - bb[i]; return 0; };
+if (compare(next, pkg.version) <= 0) throw new Error('현재 버전보다 높은 버전을 입력하세요.');
+const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+pkg.version = next; lock.version = next; lock.packages[''].version = next;
+fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
+console.log(`버전을 ${next}로 변경했습니다. 변경 내용을 커밋한 뒤 v${next} 태그를 올리면 배포됩니다.`);

@@ -45,6 +45,8 @@ Windows 교실 자리 배치 프로그램입니다. 이름 붙여넣기, 줄·�
 
 ## GitHub에 첫 배포하기
 
+`main`에 소스를 올리면 Actions가 `package.json` 버전으로 자동 배포를 시작합니다. 해당 버전이 아직 공개되지 않았다면 현재 커밋에 버전 태그를 만들고 Windows EXE와 업데이트 정보를 함께 공개합니다. 이미 공개된 버전이면 다시 빌드하거나 파일을 덮어쓰지 않습니다. 별도로 `v1.0.0` 같은 태그를 올리는 기존 배포 방식도 지원합니다.
+
 ### 간단 실행
 
 개발용 Windows PC에 [Node.js 24 LTS](https://nodejs.org/), [Git](https://git-scm.com/downloads/win), [GitHub CLI](https://cli.github.com/)를 설치합니다. PowerShell에서 한 번 `gh auth login`으로 로그인한 다음 **Publish-GitHub.cmd**를 실행합니다.
@@ -68,8 +70,6 @@ git add .
 git commit -m "Create Seaton 1.0.0"
 git remote add origin https://github.com/Chemtea/seaton.git
 git push -u origin main
-git tag -a v1.0.0 -m "Seaton v1.0.0"
-git push origin v1.0.0
 ```
 
 3. 저장소 **Actions → Build and release Windows**를 확인합니다. 완료되면 **Releases**에서 설치 파일을 내려받습니다. 별도 GitHub Pages 설정은 필요 없습니다.
@@ -78,19 +78,17 @@ Actions는 모든 결과물을 올린 뒤 Release를 공개합니다. 필요한 
 
 ## 다음 버전 배포
 
-코드를 수정하고 테스트한 뒤 버전을 높여 태그를 올립니다.
+코드를 수정하고 테스트한 뒤 버전을 높여 `main`에 올립니다. Actions가 해당 버전 태그를 만들고 배포합니다.
 
 ```powershell
 npm.cmd run release:version -- 1.0.1
 npm.cmd test
 git add .
 git commit -m "Update Seaton to 1.0.1"
-git push
-git tag -a v1.0.1 -m "Seaton v1.0.1"
-git push origin v1.0.1
+git push origin main
 ```
 
-기존 버전 파일을 덮어쓰지 않습니다. Actions는 태그·package.json·package-lock.json 버전과 실제 커밋이 일치하는지 검사합니다. 실패한 빌드는 Actions의 **Run workflow**에서 기존 태그를 입력해 재시도할 수 있습니다. 이미 공개된 Release를 바꾸려면 새 버전을 만듭니다.
+기존 버전 파일과 태그를 덮어쓰지 않습니다. Actions는 태그·package.json·package-lock.json 버전과 실제 커밋이 일치하는지 검사합니다. 실패한 빌드는 Actions에서 **Re-run jobs**를 누르거나 **Run workflow**에 기존 태그를 입력해 같은 소스로 재시도할 수 있습니다. 태그를 만든 뒤 소스를 고쳤다면 버전을 높여 배포합니다. 이미 공개된 Release를 바꿀 때도 새 버전을 만듭니다.
 
 ## 로컬 실행·EXE 빌드
 

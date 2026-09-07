@@ -1,0 +1,11 @@
+'use strict';
+const { spawnSync } = require('node:child_process');
+const path = require('node:path');
+const { prepareUpdateConfig } = require('./prepare-update.cjs');
+const cwd = path.resolve(__dirname, '..');
+const config = prepareUpdateConfig();
+if (!config.configured) console.warn('알림: 저장소가 연결되지 않아 이 빌드에서는 자동 업데이트를 사용하지 않습니다.');
+const adapter = process.platform === 'linux' ? ['--require', path.join(__dirname, 'nsis-static-extract.cjs')] : [];
+const result = spawnSync(process.execPath, [...adapter, require.resolve('electron-builder/out/cli/cli.js'), '--win', '--x64', '--config', 'electron-builder.cjs', '--publish', 'never'], { cwd, stdio: 'inherit', env: process.env });
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;
