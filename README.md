@@ -1,11 +1,11 @@
-# 자리온 1.0.2
+# 자리온 1.0.3
 
 Windows 교실 자리 배치 프로그램입니다. 이름 붙여넣기, 줄·모둠 배치, 책상·학생 이동, 교사용 준비 배정, 결과 발표, 저장·인쇄와 GitHub Releases 자동 업데이트를 제공합니다.
 
 ## 학교 컴퓨터에서 실행
 
-- **Seaton-Setup-1.0.2-x64.exe**: 권장 설치 버전. 설치한 뒤 바탕화면의 ‘자리온’을 실행합니다. GitHub에 새 버전이 공개되면 자동으로 확인하고 내려받습니다.
-- **Seaton-Portable-1.0.2-x64.exe**: 설치 없이 실행하는 버전. 자동으로 EXE를 교체하지 않으며 새 버전을 직접 내려받습니다. 작업 자료는 실행 파일 옆이 아닌 해당 Windows 사용자 자료 폴더에 저장됩니다.
+- **Seaton-Setup-1.0.3-x64.exe**: 권장 설치 버전. 설치한 뒤 바탕화면의 ‘자리온’을 실행합니다. GitHub에 새 버전이 공개되면 자동으로 확인하고 내려받습니다.
+- **Seaton-Portable-1.0.3-x64.exe**: 설치 없이 실행하는 버전. 자동으로 EXE를 교체하지 않으며 새 버전을 직접 내려받습니다. 작업 자료는 실행 파일 옆이 아닌 해당 Windows 사용자 자료 폴더에 저장됩니다.
 - 대상: Windows 10/11 64비트. 프로그램 사용·자료 저장·인쇄는 오프라인으로 가능하며 업데이트 확인·다운로드에는 인터넷이 필요합니다.
 - 최초 전달 빌드는 코드 서명 인증서가 없는 빌드입니다. 학교 PC의 앱 실행 정책에 따라 실행이 제한될 수 있습니다.
 
@@ -81,10 +81,10 @@ Actions는 모든 결과물을 올린 뒤 Release를 공개합니다. 필요한 
 코드를 수정하고 테스트한 뒤 버전을 높여 `main`에 올립니다. Actions가 해당 버전 태그를 만들고 배포합니다.
 
 ```powershell
-npm.cmd run release:version -- 1.0.3
+npm.cmd run release:version -- 1.0.4
 npm.cmd test
 git add .
-git commit -m "Update Seaton to 1.0.3"
+git commit -m "Update Seaton to 1.0.4"
 git push origin main
 ```
 
