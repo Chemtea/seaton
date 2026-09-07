@@ -334,7 +334,7 @@
         seats.forEach((seat,index)=>{
           const shortLabel=seat.temporary?'임시 '+(seats.filter(s=>s.temporary).findIndex(s=>s.id===seat.id)+1):'자리 '+(index+1);
           const card=Array.from(cards).find(item=>item.dataset.seatId===seat.id);
-          if(card){const badge=document.createElement('span');badge.className='sp-seat-index';badge.textContent=shortLabel;const name=card.querySelector('.sg-seat-name'),duplicate=name.querySelector('.sg-duplicate');if(duplicate)badge.appendChild(duplicate);name.prepend(badge);card.setAttribute('aria-label',shortLabel+' 학생 선택');card.addEventListener('click',()=>$('#sp-seat-'+index).focus({preventScroll:false}));}
+          if(card){const badge=document.createElement('span');badge.className='sp-seat-index';badge.textContent=seat.temporary?shortLabel:String(index+1);badge.title=shortLabel;const name=card.querySelector('.sg-seat-name'),duplicate=name.querySelector('.sg-duplicate');if(duplicate)badge.appendChild(duplicate);name.prepend(badge);card.setAttribute('aria-label',shortLabel+' 학생 선택');card.addEventListener('click',()=>$('#sp-seat-'+index).focus({preventScroll:false}));}
           const row=document.createElement('label');row.className='sp-assignment-row';row.htmlFor='sp-seat-'+index;const label=document.createElement('span');label.textContent=shortLabel;row.appendChild(label);
           const select=document.createElement('select');select.id='sp-seat-'+index;select.setAttribute('aria-label',shortLabel+' 학생');
           const empty=document.createElement('option');empty.value='';empty.textContent='배정 안 함';select.appendChild(empty);
