@@ -13,4 +13,4 @@ const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
 pkg.version = next; lock.version = next; lock.packages[''].version = next;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
-console.log(`버전을 ${next}로 변경했습니다. 변경 내용을 커밋한 뒤 v${next} 태그를 올리면 배포됩니다.`);
+console.log(`버전을 ${next}로 변경했습니다. 변경 내용을 커밋해 main에 올리거나 v${next} 태그를 올리면 배포됩니다.`);
