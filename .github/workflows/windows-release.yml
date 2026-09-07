@@ -80,6 +80,17 @@ jobs:
       - name: Test application logic
         if: steps.release.outputs.publish == 'true'
         run: npm test
+      - name: Verify native Windows renderer
+        if: steps.release.outputs.publish == 'true'
+        run: node scripts/verify-ui.cjs
+      - name: Upload renderer screenshots and checks
+        if: always() && steps.release.outputs.publish == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-ui-check
+          path: dist/ui-check/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Build Windows installer and portable executable
         if: steps.release.outputs.publish == 'true'
         run: npm run build:win

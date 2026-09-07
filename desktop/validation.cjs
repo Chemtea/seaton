@@ -22,6 +22,11 @@ function counts(value, fallback) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 30) fail('배치 인원을 확인해 주세요.');
   return value.map(v => number(v, 0, 200, '인원', undefined, true));
 }
+function extraPositions(value, length) {
+  if (value === undefined) return Array(length).fill('right');
+  if (!Array.isArray(value) || value.length !== length || value.some(position => !['front', 'back', 'left', 'right'].includes(position))) fail('모둠 추가석 위치를 확인해 주세요.');
+  return [...value];
+}
 function validateState(input) {
   if (!object(input) || Buffer.byteLength(JSON.stringify(input)) > MAX_BYTES) fail('자리표 파일 형식 또는 크기를 확인해 주세요.');
   if (!Array.isArray(input.students) || input.students.length > 200 || !Array.isArray(input.seats) || input.seats.length > 400) fail('학생 또는 책상 목록을 확인해 주세요.');
@@ -47,7 +52,8 @@ function validateState(input) {
       if (['sound', 'gentle', 'reducedMotion', 'teacherView', 'landscape'].includes(key)) settings[key] = Boolean(val);
     }
   }
-  return { students, seats, serial: number(input.serial, 0, 10000000, '책상 번호', seats.length, true), worldHeight: number(input.worldHeight, 100, 20000, '교실 높이', 680), deskWidth: number(input.deskWidth, 10, 1000, '책상 너비', 155), layoutKind: input.layoutKind, lineCounts: counts(input.lineCounts, [7, 7, 6, 6]), groupCounts: counts(input.groupCounts, [5, 5, 4, 4, 4, 4]), groupColumns: number(input.groupColumns, 1, 12, '가로 모둠 수', 3, true), appliedInnerGap: number(input.appliedInnerGap, 0, 1000, '책상 간격', 8), appliedOuterGap: number(input.appliedOuterGap, 0, 1000, '모둠 간격', 70), className: text(input.className, 100, '학급명', ''), rosterRevision: number(input.rosterRevision, 0, Number.MAX_SAFE_INTEGER, '명단 버전', 0, true), settings };
+  const groupCounts = counts(input.groupCounts, [5, 5, 4, 4, 4, 4]);
+  return { students, seats, serial: number(input.serial, 0, 10000000, '책상 번호', seats.length, true), worldHeight: number(input.worldHeight, 100, 20000, '교실 높이', 680), deskWidth: number(input.deskWidth, 10, 1000, '책상 너비', 155), layoutKind: input.layoutKind, lineCounts: counts(input.lineCounts, [7, 7, 6, 6]), groupCounts, groupExtraPositions: extraPositions(input.groupExtraPositions, groupCounts.length), groupColumns: number(input.groupColumns, 1, 12, '가로 모둠 수', 3, true), appliedInnerGap: number(input.appliedInnerGap, 0, 1000, '책상 간격', 8), appliedOuterGap: number(input.appliedOuterGap, 0, 1000, '모둠 간격', 70), className: text(input.className, 100, '학급명', ''), rosterRevision: number(input.rosterRevision, 0, Number.MAX_SAFE_INTEGER, '명단 버전', 0, true), settings };
 }
 function signature(state) {
   return JSON.stringify({revision: state.rosterRevision || 0, students: state.students.map(s => [s.id, s.name]).sort((a,b) => a[0].localeCompare(b[0])), seats: state.seats.map(s => [s.id, Boolean(s.temporary), s.groupId || null, s.temporary ? Boolean(s.studentId) : null]).sort((a,b) => a[0].localeCompare(b[0]))});

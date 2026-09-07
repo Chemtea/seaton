@@ -4,8 +4,8 @@
   
   <section class="sg-app">
     <header class="sg-header">
-      <div><button type="button" class="sg-brand sp-settings-open" aria-label="설정">자리온</button><div class="sg-small app-version"></div></div>
-      <div class="sg-actions"><button type="button" class="sg-print-open" hidden>인쇄 미리보기</button><button type="button" class="sg-public-toggle" aria-pressed="false" hidden>학생 공개 화면</button></div>
+      <div><button type="button" class="sg-brand sp-private-trigger" aria-label="자리온">자리온</button><div class="sg-small app-version"></div></div>
+      <div class="sg-actions"><button type="button" class="sp-settings-open">설정</button><button type="button" class="sg-print-open" hidden>인쇄 미리보기</button><button type="button" class="sg-public-toggle" aria-pressed="false" hidden>학생 공개 화면</button></div>
     </header>
     <div class="sg-work">
       <aside class="sg-sidebar" hidden>
@@ -36,7 +36,7 @@
             <label class="sg-field" for="sg-group-columns">가로 모둠 수 <select id="sg-group-columns"><option value="1">1모둠씩</option><option value="2">2모둠씩</option><option value="3" selected>3모둠씩</option></select></label>
             <div class="sg-small sg-arrangement" aria-live="polite">가로 3모둠 × 세로 2단</div>
             <div class="sg-counts sg-group-counts"></div>
-            <div class="sg-small">5인 모둠: 2 + 2 + 옆 중앙 1자리</div>
+            <div class="sg-small">홀수 모둠의 추가석 위치를 각각 선택하세요. 앞은 칠판 쪽이며, 5인 모둠은 4자리와 선택한 쪽의 1자리로 배치합니다.</div>
             <label class="sg-range-label" for="sg-inner-gap">모둠 안 책상 간격 <output id="sg-inner-value">8</output></label>
             <input id="sg-inner-gap" type="range" min="0" max="22" value="8" step="1">
             <label class="sg-range-label" for="sg-outer-gap">모둠 사이 간격 <output id="sg-outer-value">70</output></label>
@@ -46,16 +46,6 @@
           <div class="sg-small">다음 배치 설정 · 적용하면 다시 정렬</div>
           <button type="button" class="sg-apply sg-primary sg-full">줄 배치 적용</button>
           <div class="sg-layout-error sg-error" role="alert"></div>
-        </details>
-        <details class="sr-teacher">
-          <summary>교사용 준비 배치</summary>
-          <button type="button" class="sr-remember sg-full">자리별 학생 지정</button>
-          <div class="sr-preset-status sg-small" aria-live="polite">준비 배치 없음</div>
-          <div class="sg-actions"><button type="button" class="sr-clear" disabled>지정 해제</button></div>
-          <div class="sg-small">책상 위치는 유지 · 학생 배정만 별도로 준비</div>
-          <div class="sg-small">Ctrl + 섞기 / 결과 발표: 저장한 학생 배정 사용</div>
-          <div class="sg-small">준비 배정은 PIN으로 보호하여 저장합니다.</div>
-          <div class="sr-teacher-error sg-error" role="alert"></div>
         </details>
         <details class="sr-settings" open>
           <summary>결과 발표 설정</summary>
@@ -116,6 +106,13 @@
     </section>
     <section class="sp-private" aria-label="교사용 학생 배정" hidden>
       <div class="sg-top"><div><h2>자리별 학생 지정</h2><div class="sg-small">책상 고정 · 이름 선택 시 이미 배정된 학생은 서로 교환</div></div><div class="sg-actions"><button type="button" class="sp-save sg-primary">준비 배정 저장</button><button type="button" class="sp-discard">편집으로</button><button type="button" class="sp-lock">잠그고 공개</button></div></div>
+      <div class="sr-teacher">
+        <div class="sr-preset-status sg-small" aria-live="polite"></div>
+        <div class="sg-actions"><button type="button" class="sr-clear" disabled>저장한 준비 배정 해제</button></div>
+        <div class="sg-small">Ctrl + 섞기 / 결과 발표: 저장한 학생 배정 사용</div>
+        <div class="sg-small">준비 배정은 PIN으로 보호하여 저장합니다.</div>
+        <div class="sr-teacher-error sg-error" role="alert"></div>
+      </div>
       <div class="sp-draft-status sg-small" aria-live="polite"></div>
       <div class="sp-draft-error sg-error" role="alert"></div>
       <div class="sp-draft-layout"><div class="sg-room sp-private-room" aria-label="번호가 표시된 고정 책상"></div><div class="sp-assignments" aria-label="자리별 학생 선택"></div></div>

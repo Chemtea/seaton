@@ -58,7 +58,7 @@ async function harness(t) {
     renderAssignmentDraft = () => {};
     globalThis.engine = {
       snapshot, loadState, assignmentsFrom, preparedError, chooseResult, instantShuffle,
-      beginShow, commitShow, leaveStage, lockPublic, unlockSettings,
+      beginShow, commitShow, leaveStage, lockPublic, unlockSettings, openSettings, handleBrandTap, clearPrivateDraft,
       openAssignmentEditor, changeDraftAssignment, saveAssignmentDraft, flushSave,
       setup() {
         students = Array.from({length: 26}, (_, i) => ({id: 'p' + i, name: '학생' + (i + 1)}));
@@ -69,7 +69,7 @@ async function harness(t) {
       },
       mutate(fn) {fn(seats, students);},
       get() {return {active: activeShow, history: history.length, prepared: clone(preparedAssignments),
-        draft: clone(assignmentDraft), public: isPublic, unlocked: teacherUnlocked, busy: requestBusy};},
+        draft: clone(assignmentDraft), public: isPublic, unlocked: teacherUnlocked, busy: requestBusy, privateAccess};},
       async settled() {await saveChain.catch(() => {}); await lockChain.catch(() => {});},
       cancelPending() {commandEpoch += 1; lockPublic();},
       async cleanup() {if (activeShow) leaveStage(true); ready = false; clearTimeout(saveTimer); await saveChain.catch(() => {}); await lockChain.catch(() => {});}
@@ -81,13 +81,77 @@ async function harness(t) {
 }
 
 async function prepare(h) {
+  for (let i = 0; i < 5; i++) h.e.handleBrandTap(1000 + i * 250);
   assert.equal(await h.e.unlockSettings('482619', '482619'), '');
-  h.e.openAssignmentEditor();
+  assert.equal(h.e.get().privateAccess, true);
   h.e.changeDraftAssignment(h.e.snapshot().seats[0].id, 'p1');
   await h.e.saveAssignmentDraft();
-  assert.match(h.node('.sr-preset-status').textContent, /저장됨/);
+  assert.equal(h.node('.sr-preset-status').textContent, '');
+  assert.equal(h.e.get().privateAccess, false);
   return plain(h.e.get().prepared);
 }
+
+test('ordinary settings never expose private assignments; five taps require a fresh PIN', async t => {
+  const h = await harness(t);
+  h.e.openSettings();
+  assert.equal(await h.e.unlockSettings('482619', '482619'), '');
+  h.e.openAssignmentEditor();
+  assert.equal(h.e.get().draft, null);
+  assert.equal(h.e.get().privateAccess, false);
+  assert.equal(h.node('.sp-private').hidden, true);
+  for (let i = 0; i < 4; i++) h.e.handleBrandTap(1000 + i * 200);
+  assert.equal(h.node('.sp-auth').hidden, true);
+  assert.equal(h.node('.sp-private').hidden, true);
+  h.e.handleBrandTap(1800);
+  assert.equal(h.node('.sp-auth').hidden, false);
+  assert.equal(h.node('.sp-private').hidden, true);
+  assert.ok(await h.e.unlockSettings('111111', ''));
+  assert.equal(h.e.get().privateAccess, false);
+  await pause(550); // The real storage service throttles PIN retries for 500 ms.
+  assert.equal(await h.e.unlockSettings('482619', ''), '');
+  assert.equal(h.node('.sp-private').hidden, false);
+  assert.equal(h.e.get().privateAccess, true);
+  h.e.clearPrivateDraft();
+  assert.equal(h.e.get().draft, null);
+  assert.equal(h.e.get().privateAccess, false);
+  assert.equal(h.node('.sr-preset-status').textContent, '');
+  h.e.openAssignmentEditor();
+  assert.equal(h.node('.sp-private').hidden, true);
+});
+
+test('old taps and taps interrupted by ordinary settings cannot open private mode', async t => {
+  const h = await harness(t);
+  for (let i = 0; i < 4; i++) h.e.handleBrandTap(i * 200);
+  h.e.handleBrandTap(6000);
+  assert.equal(h.node('.sp-auth').hidden, true);
+  h.e.openSettings();
+  assert.equal(await h.e.unlockSettings('482619', '482619'), '');
+  for (let i = 0; i < 4; i++) h.e.handleBrandTap(6500 + i * 200);
+  assert.equal(h.node('.sp-auth').hidden, true);
+  assert.equal(h.e.get().privateAccess, false);
+});
+
+test('private PIN response cannot reopen a screen after escape locking', async t => {
+  const h = await harness(t), gate = defer(), originalUnlock = h.bridge.unlock;
+  for (let i = 0; i < 5; i++) h.e.handleBrandTap(1000 + i * 200);
+  h.bridge.unlock = async value => {await gate.promise; return originalUnlock(value);};
+  const pending = h.e.unlockSettings('482619', '482619');
+  await pause(0); h.e.lockPublic(); gate.resolve(); await pending; await h.e.settled();
+  assert.equal(h.e.get().privateAccess, false);
+  assert.equal(h.e.get().draft, null);
+  assert.equal(h.node('.sp-private').hidden, true);
+  assert.equal(h.store.unlocked, false);
+});
+
+test('prepared-result errors stay neutral even on the ordinary teacher screen', async t => {
+  const h = await harness(t);
+  h.e.openSettings(); await h.e.unlockSettings('482619', '482619');
+  await h.e.instantShuffle(true);
+  assert.equal(h.node('.sg-status').textContent, '발표 준비를 확인해 주세요.');
+  assert.equal(h.node('.sr-preset-status').textContent, '');
+  assert.equal(h.node('.sr-teacher-error').textContent, '');
+  assert.equal(h.node('.sp-private').hidden, true);
+});
 
 test('private assignment save leaves public seating intact and survives renderer locking', async t => {
   const h = await harness(t), before = plain(h.e.snapshot());

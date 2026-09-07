@@ -118,7 +118,7 @@ test('public projection strips injected metadata and cannot mutate stored state 
   state.settings.privateSecret = 'private-setting';
   Object.assign(state, JSON.parse('{"__proto__":{"polluted":"yes"}}'));
   const display = publicState(state), serialized = JSON.stringify(display);
-  assert.deepEqual(Object.keys(display).sort(), ['students', 'seats', 'serial', 'worldHeight', 'deskWidth', 'layoutKind', 'lineCounts', 'groupCounts', 'groupColumns', 'appliedInnerGap', 'appliedOuterGap', 'className', 'rosterRevision', 'settings'].sort());
+  assert.deepEqual(Object.keys(display).sort(), ['students', 'seats', 'serial', 'worldHeight', 'deskWidth', 'layoutKind', 'lineCounts', 'groupCounts', 'groupExtraPositions', 'groupColumns', 'appliedInnerGap', 'appliedOuterGap', 'className', 'rosterRevision', 'settings'].sort());
   assert.deepEqual(display.settings, {}, 'display settings contain no private presentation or teacher preferences');
   assert.equal(display.rosterRevision, 0, 'internal roster revision is redacted');
   for (const secret of ['prepared', 'signature', '482619', 'private-key', 'private-student-note', 'private-setting']) {

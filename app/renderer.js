@@ -16,16 +16,21 @@
       const balanced = (total,count) => Array.from({length:count},(_,i) => Math.floor(total/count)+(i<total%count?1:0));
       const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
       const clone = value => JSON.parse(JSON.stringify(value));
+      const extraPositionOptions = [['front','앞'],['back','뒤'],['left','왼쪽'],['right','오른쪽']];
+      const normalizeExtraPositions = (counts,positions=[]) => counts.map((_,i)=>extraPositionOptions.some(([value])=>value===positions[i])?positions[i]:'right');
       let students = [];
       let seats = [], serial = 0, worldHeight = 680, deskWidth = 155;
       let layoutKind = 'groups', lineCounts = [7,7,6,6], groupCounts = [5,5,4,4,4,4];
+      let groupExtraPositions = normalizeExtraPositions(groupCounts);
       let groupColumns = 3, appliedInnerGap = 8, appliedOuterGap = 70;
       let draftKind = 'groups', draftLines = [...lineCounts], draftGroups = [...groupCounts], draftColumns = 3;
+      let draftExtraPositions = [...groupExtraPositions];
       let mode = 'group', teacherView = false, isPublic = true;
       let selectedId = null, pendingId = null, drag = null, suppressClick = false;
       let history = [];
       let preparedAssignments = null, preparedSignature = null, rosterRevision = 0;
       let pinExists = false, teacherUnlocked = false, assignmentDraft = null, draftSignature = null, privateNotice = '';
+      let privateAccess = false, authPurpose = 'settings', brandTaps = [];
       let className='우리 반', appRole='control', ready=false, accessEpoch=0, commandEpoch=0, requestBusy=false;
       let saveTimer=null, saveChain=Promise.resolve(), lockChain=Promise.resolve(), lastSaved='', updateState=null, nativeDialogActive=false;
       let activeShow = null, showSerial = 0;
@@ -36,13 +41,14 @@
       const pendingStudents = () => {const placed=placedIds();return students.filter(student=>!placed.has(student.id));};
       const temporaryIds = () => new Set(seats.filter(seat=>seat.temporary&&seat.studentId).map(seat=>seat.studentId));
       const regularPopulation = () => students.length-temporaryIds().size;
-      function snapshot(){return clone({students,seats,serial,worldHeight,deskWidth,layoutKind,lineCounts,groupCounts,groupColumns,appliedInnerGap,appliedOuterGap,rosterRevision,className,settings:{rounds:Number($('#sr-rounds').value)||7,sound:$('#sr-sound').checked,gentle:$('#sr-gentle').checked,landscape:$('#app-landscape').checked}});}
+      function snapshot(){return clone({students,seats,serial,worldHeight,deskWidth,layoutKind,lineCounts,groupCounts,groupExtraPositions,groupColumns,appliedInnerGap,appliedOuterGap,rosterRevision,className,settings:{rounds:Number($('#sr-rounds').value)||7,sound:$('#sr-sound').checked,gentle:$('#sr-gentle').checked,landscape:$('#app-landscape').checked}});}
       function loadState(value){
         const plan=clone(value);({students,seats,serial,worldHeight,deskWidth,layoutKind,lineCounts,groupCounts,groupColumns,appliedInnerGap,appliedOuterGap}=plan);
+        groupExtraPositions=normalizeExtraPositions(groupCounts,plan.groupExtraPositions);
         rosterRevision=plan.rosterRevision||0;className=plan.className||'우리 반';
         const options=plan.settings||{};$('#sr-rounds').value=String(options.rounds||7);$('#sr-sound').checked=Boolean(options.sound);$('#sr-gentle').checked=Boolean(options.gentle);$('#app-landscape').checked=options.landscape!==false;
         $('#app-class-name').value=className;namesInput.value=students.map(student=>student.name).join('\n');
-        draftLines=[...lineCounts];draftGroups=[...groupCounts];draftColumns=groupColumns;mode=layoutKind==='groups'?'group':'student';selectedId=null;pendingId=null;
+        draftLines=[...lineCounts];draftGroups=[...groupCounts];draftExtraPositions=[...groupExtraPositions];draftColumns=groupColumns;mode=layoutKind==='groups'?'group':'student';selectedId=null;pendingId=null;
         $('#sg-inner-gap').value=String(appliedInnerGap);$('#sg-outer-gap').value=String(appliedOuterGap);$('#sg-inner-value').textContent=String(appliedInnerGap);$('#sg-outer-value').textContent=String(appliedOuterGap);
         syncDraftControls();switchTab(layoutKind);updateImportCount();
       }
@@ -73,22 +79,28 @@
         counts.forEach((count,column)=>{for(let row=0;row<count;row++)points.push({x:50+(column+.5)*900/counts.length,y:195+row*68,groupId:null});});
         return {points,width,height};
       }
-      function groupShape(count,gap){
+      function groupShape(count,gap,extraPosition='right'){
         const points=[],paired=Math.floor(count/2), px=105+gap,py=DESK_HEIGHT+gap*.65;
         if(count===1)return {points:[{x:0,y:0}],width:105,height:DESK_HEIGHT};
         for(let row=0;row<paired;row++){points.push({x:0,y:row*py},{x:px,y:row*py});}
-        if(count%2)points.push({x:px*2,y:(paired-1)*py/2});
-        return {points,width:(count%2?px*2:px)+105,height:Math.max(1,paired)*py-gap*.65};
+        if(count%2){
+          if(extraPosition==='front'){points.forEach(point=>{point.y+=py;});points.push({x:px/2,y:0});}
+          else if(extraPosition==='back')points.push({x:px/2,y:paired*py});
+          else if(extraPosition==='left'){points.forEach(point=>{point.x+=px;});points.push({x:0,y:(paired-1)*py/2});}
+          else points.push({x:px*2,y:(paired-1)*py/2});
+        }
+        return {points,width:Math.max(...points.map(point=>point.x))+105,height:Math.max(...points.map(point=>point.y))+DESK_HEIGHT};
       }
-      function groupGeometry(counts,inner,outer,requestedColumns=3){
-        const shapes=counts.map(count=>groupShape(count,inner)), columns=Math.min(Math.max(1,requestedColumns),counts.length);
-        const maxWidth=Math.max(...shapes.map(shape=>shape.width)), allWidth=columns*maxWidth+(columns-1)*outer;
+      function groupGeometry(counts,inner,outer,requestedColumns=3,extraPositions=[]){
+        const shapes=counts.map((count,index)=>groupShape(count,inner,extraPositions[index])), columns=Math.min(Math.max(1,requestedColumns),counts.length);
+        const columnWidths=Array.from({length:columns},(_,column)=>Math.max(...shapes.filter((_,index)=>index%columns===column).map(shape=>shape.width)));
+        const allWidth=columnWidths.reduce((sum,width)=>sum+width,0)+(columns-1)*outer;
         const scaleX=Math.min(1,900/allWidth), left=(WIDTH-allWidth*scaleX)/2, points=[];
         let top=194;
         for(let start=0;start<counts.length;start+=columns){
           const row=shapes.slice(start,start+columns),rowHeight=Math.max(...row.map(shape=>shape.height));
           row.forEach((shape,column)=>{
-            const x=column*(maxWidth+outer)+(maxWidth-shape.width)/2+52.5;
+            const x=columnWidths.slice(0,column).reduce((sum,width)=>sum+width,0)+column*outer+(columnWidths[column]-shape.width)/2+52.5;
             shape.points.forEach(point=>points.push({x:left+(x+point.x)*scaleX,y:top+point.y,groupId:'g'+(start+column+1)}));
           });
           top+=rowHeight+36+outer*.65;
@@ -138,12 +150,23 @@
       }
       function renderCountInputs(kind){
         const group=kind==='groups',counts=group?draftGroups:draftLines,target=$(group?'.sg-group-counts':'.sg-line-counts');
+        if(group)draftExtraPositions=normalizeExtraPositions(draftGroups,draftExtraPositions);
         target.replaceChildren();
         counts.forEach((value,index)=>{
           const label=document.createElement('label');label.textContent=(index+1)+(group?'모둠':'줄');
           const input=document.createElement('input');input.type='number';input.min=group?'1':'0';input.max=group?'8':'60';input.step='1';input.value=String(value);input.setAttribute('aria-label',(index+1)+(group?'모둠 인원':'줄 인원'));
-          input.addEventListener('input',()=>{counts[index]=input.value===''?NaN:Number(input.value);updateSummary();});
-          label.appendChild(input);target.appendChild(label);
+          let positionSelect=null;
+          input.addEventListener('input',()=>{counts[index]=input.value===''?NaN:Number(input.value);if(positionSelect)positionSelect.disabled=!(Number.isInteger(counts[index])&&counts[index]>1&&counts[index]%2===1);updateSummary();});
+          label.appendChild(input);
+          if(group){
+            const choice=document.createElement('div');choice.className='sg-group-choice';label.className='sg-group-size';choice.appendChild(label);
+            const positionLabel=document.createElement('label');positionLabel.className='sg-group-position';positionLabel.textContent='추가석';
+            positionSelect=document.createElement('select');positionSelect.setAttribute('aria-label',(index+1)+'모둠 추가석 위치');
+            extraPositionOptions.forEach(([position,text])=>{const option=document.createElement('option');option.value=position;option.textContent=text;positionSelect.appendChild(option);});
+            positionSelect.value=draftExtraPositions[index];positionSelect.disabled=!(Number.isInteger(value)&&value>1&&value%2===1);
+            positionSelect.addEventListener('change',()=>{draftExtraPositions[index]=positionSelect.value;updateSummary();});
+            positionLabel.appendChild(positionSelect);choice.appendChild(positionLabel);target.appendChild(choice);
+          }else target.appendChild(label);
         });
       }
       function syncDraftControls(){
@@ -245,15 +268,15 @@
         return completePlanError(withAssignments(snapshot(),preparedAssignments));
       }
       function updatePreparedStatus(){
-        if(!teacherUnlocked){$('.sr-preset-status').textContent='';$('.sr-teacher-error').textContent='';return;}
+        if(!teacherUnlocked||!privateAccess||$('.sp-private').hidden){$('.sr-preset-status').textContent='';$('.sr-teacher-error').textContent='';$('.sr-clear').disabled=true;return;}
         const error=preparedAssignments?preparedError():'';
         $('.sr-preset-status').textContent=!preparedAssignments?'준비 배정 없음':error?'준비 배정 확인 필요':'준비 배정 저장됨 · '+students.length+'명';
         $('.sr-clear').disabled=!preparedAssignments;$('.sr-teacher-error').textContent=privateNotice;
       }
-      function reportTeacherError(message){
+      function reportTeacherError(message,privateMessage=false){
         privateNotice=message;
-        if(isPublic){$('.sg-status').hidden=false;setStatus('발표 준비를 확인해 주세요.');}
-        else{setStatus(message);$('.sr-teacher').open=true;updatePreparedStatus();}
+        if(privateAccess&&!$('.sp-private').hidden){$('.sp-draft-error').textContent=message;updatePreparedStatus();}
+        else{$('.sg-status').hidden=false;setStatus(isPublic||privateMessage?'발표 준비를 확인해 주세요.':message);}
       }
       function assignmentsFrom(plan){return Object.fromEntries(plan.seats.map(seat=>[seat.id,seat.studentId||null]));}
       function withAssignments(plan,assignments){
@@ -263,21 +286,30 @@
         const assignments=assignmentsFrom(plan);seats.forEach(seat=>{seat.studentId=assignments[seat.id]||null;});
       }
       function clearPrivateDraft(){
-        assignmentDraft=null;draftSignature=null;$('.sp-private').hidden=true;$('.sp-private-room').replaceChildren();$('.sp-assignments').replaceChildren();$('.sp-draft-status').textContent='';$('.sp-draft-error').textContent='';
+        privateAccess=false;brandTaps=[];assignmentDraft=null;draftSignature=null;$('.sp-private').hidden=true;$('.sp-private-room').replaceChildren();$('.sp-assignments').replaceChildren();$('.sp-draft-status').textContent='';$('.sp-draft-error').textContent='';updatePreparedStatus();
       }
       function lockPublic(){
         const pendingSave=flushSave();
         accessEpoch+=1;preparedAssignments=null;preparedSignature=null;privateNotice='';
-        teacherUnlocked=false;isPublic=true;selectedId=null;pendingId=null;
+        teacherUnlocked=false;isPublic=true;selectedId=null;pendingId=null;authPurpose='settings';brandTaps=[];
         if(drag){drag=null;suppressClick=false;}
         clearPrivateDraft();$('.sp-auth').hidden=true;$('#sp-pin').value='';$('#sp-pin-confirm').value='';$('.sp-auth-error').textContent='';
         $('.sg-print').hidden=true;$('.sg-print-pages').replaceChildren();$('.sg-header').hidden=false;$('.sg-work').hidden=false;
-        $('.sr-teacher').open=false;render();
+        render();
         if(appRole==='control')lockChain=pendingSave.catch(()=>{}).then(()=>bridge.lock()).catch(()=>{});
       }
-      function openSettings(){
+      function handleBrandTap(now=Date.now()){
+        if(activeShow||appRole!=='control'||requestBusy||!$('.sp-auth').hidden){brandTaps=[];return;}
+        brandTaps=brandTaps.filter(time=>now-time<=4000);
+        if(brandTaps.length&&now-brandTaps[brandTaps.length-1]>1500)brandTaps=[];
+        brandTaps.push(now);
+        if(brandTaps.length===5){brandTaps=[];openSettings('private');}
+      }
+      function openSettings(purpose='settings'){
         if(activeShow||appRole!=='control'||requestBusy)return;
-        if(teacherUnlocked){$('.sg-print').hidden=true;clearPrivateDraft();$('.sg-header').hidden=false;$('.sg-work').hidden=false;return;}
+        brandTaps=[];
+        if(purpose!=='private'&&teacherUnlocked){accessEpoch+=1;authPurpose='settings';$('.sp-auth').hidden=true;$('#sp-pin').value='';$('#sp-pin-confirm').value='';$('.sg-print').hidden=true;clearPrivateDraft();$('.sg-header').hidden=false;$('.sg-work').hidden=false;return;}
+        accessEpoch+=1;authPurpose=purpose==='private'?'private':'settings';clearPrivateDraft();
         $('.sg-header').hidden=true;$('.sg-work').hidden=true;$('.sg-print').hidden=true;$('.sp-auth').hidden=false;
         $('.sp-pin-confirm-label').hidden=pinExists;$('#sp-pin-confirm').required=!pinExists;
         $('.sp-auth-hint').textContent=pinExists?'설정을 열 PIN을 입력해 주세요.':'처음 사용할 PIN을 정하세요. 숫자 6~12자리';
@@ -286,22 +318,23 @@
       async function unlockSettings(pin,confirm){
         if(!/^\d{6,12}$/.test(pin)){return '숫자 6~12자리 PIN을 입력해 주세요.';}
         if(!pinExists&&pin!==confirm)return '두 PIN이 일치하지 않습니다.';
-        const epoch=accessEpoch;await lockChain;const result=await bridge.unlock({pin,confirm});
+        const epoch=accessEpoch,purpose=authPurpose;await lockChain;const result=await bridge.unlock({pin,confirm});
         if(epoch!==accessEpoch){bridge.lock().catch(()=>{});return '';}
         if(!result.ok)return result.error||'설정을 열지 못했습니다.';
         pinExists=true;preparedAssignments=result.prepared?.assignments||null;preparedSignature=result.prepared?.signature||null;
         teacherUnlocked=true;isPublic=false;$('.sp-auth').hidden=true;$('#sp-pin').value='';$('#sp-pin-confirm').value='';
-        $('.sg-header').hidden=false;$('.sg-work').hidden=false;render();bridge.getUpdateState().then(showUpdateState).catch(()=>{});return '';
+        authPurpose='settings';privateAccess=purpose==='private';
+        $('.sg-header').hidden=false;$('.sg-work').hidden=false;render();if(privateAccess)openAssignmentEditor();bridge.getUpdateState().then(showUpdateState).catch(()=>{});return '';
       }
       function renderAssignmentDraft(){
-        if(!teacherUnlocked||!assignmentDraft)return;
+        if(!teacherUnlocked||!privateAccess||!assignmentDraft)return;
         const view=withAssignments(snapshot(),assignmentDraft),target=$('.sp-assignments');target.replaceChildren();
         renderRoom($('.sp-private-room'),false,true,view);
         const cards=$('.sp-private-room').querySelectorAll('[data-seat-id]');
         seats.forEach((seat,index)=>{
           const shortLabel=seat.temporary?'임시 '+(seats.filter(s=>s.temporary).findIndex(s=>s.id===seat.id)+1):'자리 '+(index+1);
           const card=Array.from(cards).find(item=>item.dataset.seatId===seat.id);
-          if(card){const badge=document.createElement('span');badge.className='sp-seat-index';badge.textContent=shortLabel;card.querySelector('.sg-seat-name').prepend(badge);card.setAttribute('aria-label',shortLabel+' 학생 선택');card.addEventListener('click',()=>$('#sp-seat-'+index).focus({preventScroll:false}));}
+          if(card){const badge=document.createElement('span');badge.className='sp-seat-index';badge.textContent=shortLabel;const name=card.querySelector('.sg-seat-name'),duplicate=name.querySelector('.sg-duplicate');if(duplicate)badge.appendChild(duplicate);name.prepend(badge);card.setAttribute('aria-label',shortLabel+' 학생 선택');card.addEventListener('click',()=>$('#sp-seat-'+index).focus({preventScroll:false}));}
           const row=document.createElement('label');row.className='sp-assignment-row';row.htmlFor='sp-seat-'+index;const label=document.createElement('span');label.textContent=shortLabel;row.appendChild(label);
           const select=document.createElement('select');select.id='sp-seat-'+index;select.setAttribute('aria-label',shortLabel+' 학생');
           const empty=document.createElement('option');empty.value='';empty.textContent='배정 안 함';select.appendChild(empty);
@@ -312,19 +345,19 @@
         const assigned=new Set(Object.values(assignmentDraft).filter(Boolean));$('.sp-draft-status').textContent='배정 '+assigned.size+' / '+students.length+'명 · 공개 자리표와 책상 위치는 그대로 유지됩니다.';
       }
       function openAssignmentEditor(){
-        if(!teacherUnlocked||activeShow)return;
+        if(!teacherUnlocked||!privateAccess||activeShow)return;
         assignmentDraft=preparedAssignments&&!preparedError()?clone(preparedAssignments):assignmentsFrom(snapshot());draftSignature=planSignature();
-        $('.sg-header').hidden=true;$('.sg-work').hidden=true;$('.sp-private').hidden=false;$('.sp-draft-error').textContent='';renderAssignmentDraft();
+        $('.sg-header').hidden=true;$('.sg-work').hidden=true;$('.sp-private').hidden=false;$('.sp-draft-error').textContent='';renderAssignmentDraft();updatePreparedStatus();
       }
       function changeDraftAssignment(seatId,studentId){
-        if(!teacherUnlocked||!assignmentDraft||!findSeat(seatId)||(studentId&&!findStudent(studentId)))return;
+        if(!teacherUnlocked||!privateAccess||!assignmentDraft||!findSeat(seatId)||(studentId&&!findStudent(studentId)))return;
         const old=assignmentDraft[seatId]||null,other=studentId?Object.keys(assignmentDraft).find(id=>id!==seatId&&assignmentDraft[id]===studentId):null;
         const proposed=clone(assignmentDraft);if(other)proposed[other]=old;proposed[seatId]=studentId;
         if(seats.some(seat=>seat.temporary&&Boolean(seat.studentId)!==Boolean(proposed[seat.id]))){$('.sp-draft-error').textContent='임시 자리의 사용 여부는 편집 화면에서 먼저 정해 주세요.';renderAssignmentDraft();return;}
         assignmentDraft=proposed;$('.sp-draft-error').textContent='';renderAssignmentDraft();
       }
       async function saveAssignmentDraft(){
-        if(!teacherUnlocked||!assignmentDraft)return;
+        if(!teacherUnlocked||!privateAccess||!assignmentDraft)return;
         const error=draftSignature!==planSignature()?'명단이나 책상이 변경되었습니다. 편집 화면에서 다시 열어 주세요.':completePlanError(withAssignments(snapshot(),assignmentDraft));
         if(error){$('.sp-draft-error').textContent=error;return;}
         const assignments=clone(assignmentDraft),signature=planSignature(),epoch=accessEpoch;
@@ -332,7 +365,7 @@
         if(epoch!==accessEpoch)return;
         if(!result.ok){$('.sp-draft-error').textContent=result.error||'준비 배정을 저장하지 못했습니다.';return;}
         preparedAssignments=assignments;preparedSignature=signature;privateNotice='';
-        clearPrivateDraft();$('.sg-header').hidden=false;$('.sg-work').hidden=false;render();setStatus('학생 배정만 저장했습니다. 공개 자리표와 책상 위치는 바뀌지 않았습니다.');
+        clearPrivateDraft();$('.sg-header').hidden=false;$('.sg-work').hidden=false;render();setStatus('저장했습니다.');
       }
       function randomPlan(source){
         const target=clone(source),fixed=new Set(target.seats.filter(s=>s.temporary&&s.studentId).map(s=>s.studentId));
@@ -449,7 +482,7 @@
         if(!students.length){reportTeacherError('설정에서 학급 명단을 먼저 입력해 주세요.');return;}
         const rounds=Number($('#sr-rounds').value);if(!Number.isInteger(rounds)||rounds<1||rounds>15){reportTeacherError('발표 횟수는 1~15 사이의 정수로 입력해 주세요.');return;}
         const ticket=++commandEpoch;setRequestBusy(true);
-        let target;try{target=await chooseResult(usePrepared);}catch(error){reportTeacherError(error.message);return;}finally{setRequestBusy(false);}
+        let target;try{target=await chooseResult(usePrepared);}catch(error){reportTeacherError(error.message,usePrepared);return;}finally{setRequestBusy(false);}
         if(ticket!==commandEpoch)return;
         const run={id:++showSerial,before:snapshot(),target:clone(target),view:teacherView,rounds,reduced:$('#sr-gentle').checked||Boolean(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches),waits:new Map(),animations:[],audio:null,finished:false};
         lockPublic();
@@ -465,7 +498,7 @@
         if(activeShow||requestBusy||appRole!=='control')return;
         if(!students.length){reportTeacherError('설정에서 학급 명단을 먼저 입력해 주세요.');return;}
         const ticket=++commandEpoch;setRequestBusy(true);
-        let target;try{target=await chooseResult(usePrepared);}catch(error){reportTeacherError(error.message);return;}finally{setRequestBusy(false);}
+        let target;try{target=await chooseResult(usePrepared);}catch(error){reportTeacherError(error.message,usePrepared);return;}finally{setRequestBusy(false);}
         if(ticket!==commandEpoch)return;
         pushSnapshot();applyAssignments(target);privateNotice='';lockPublic();finishChange('자리 배치를 바꿨습니다.');
       }
@@ -561,18 +594,18 @@
       $('.sg-apply').addEventListener('click',()=>{
         const counts=draftKind==='lines'?draftLines:draftGroups,error=validateCounts(counts,draftKind);if(error){$('.sg-layout-error').textContent=error;return;}
         const inner=Number($('#sg-inner-gap').value),outer=Number($('#sg-outer-gap').value);
-        const geometry=draftKind==='lines'?lineGeometry(counts):groupGeometry(counts,inner,outer,draftColumns);
+        const geometry=draftKind==='lines'?lineGeometry(counts):groupGeometry(counts,inner,outer,draftColumns,draftExtraPositions);
         const regular=seats.filter(seat=>!seat.temporary);
         const preserveGroups=draftKind==='groups'&&layoutKind==='groups'&&pendingStudents().length===0&&regular.length===counts.reduce((a,b)=>a+b,0)&&counts.every((count,index)=>regular.filter(seat=>seat.groupId==='g'+(index+1)).length===count);
         pushSnapshot();installGeometry(geometry,preserveGroups);layoutKind=draftKind;
-        if(draftKind==='lines'){lineCounts=[...counts];mode='desk';}else{groupCounts=[...counts];groupColumns=draftColumns;appliedInnerGap=inner;appliedOuterGap=outer;mode='group';}
+        if(draftKind==='lines'){lineCounts=[...counts];mode='desk';}else{groupCounts=[...counts];groupExtraPositions=normalizeExtraPositions(counts,draftExtraPositions);groupColumns=draftColumns;appliedInnerGap=inner;appliedOuterGap=outer;mode='group';}
         render();setStatus(draftKind==='lines'?counts.length+'줄로 배치했습니다. 각 책상은 자유롭게 이동할 수 있습니다.':'가로 '+Math.min(groupColumns,counts.length)+'모둠 × 세로 '+Math.ceil(counts.length/Math.min(groupColumns,counts.length))+'단으로 배치했습니다. 모둠을 드래그해 자유롭게 옮겨 보세요.');
       });
       $('.sg-shuffle').addEventListener('click',safeAction(event=>instantShuffle(Boolean(event.ctrlKey))));
       $('.sr-reveal').addEventListener('click',safeAction(event=>beginShow(Boolean(event.ctrlKey))));
-      $('.sr-remember').addEventListener('click',openAssignmentEditor);
-      $('.sr-clear').addEventListener('click',safeAction(async()=>{if(activeShow||!teacherUnlocked)return;const epoch=accessEpoch,result=await bridge.clearPrepared();if(epoch!==accessEpoch)return;if(!result.ok)throw new Error(result.error);preparedAssignments=null;preparedSignature=null;privateNotice='';updatePreparedStatus();setStatus('준비 배정을 해제했습니다.');}));
-      $('.sp-settings-open').addEventListener('click',openSettings);
+      $('.sr-clear').addEventListener('click',safeAction(async()=>{if(activeShow||!teacherUnlocked||!privateAccess)return;const epoch=accessEpoch,result=await bridge.clearPrepared();if(epoch!==accessEpoch||!privateAccess)return;if(!result.ok)throw new Error(result.error);preparedAssignments=null;preparedSignature=null;privateNotice='';updatePreparedStatus();$('.sp-draft-status').textContent='저장한 준비 배정을 해제했습니다. 현재 편집 내용은 저장 전까지 적용되지 않습니다.';}));
+      $('.sp-settings-open').addEventListener('click',()=>openSettings());
+      $('.sp-private-trigger').addEventListener('click',()=>handleBrandTap());
       $('.sp-auth-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter;try{if(button)button.disabled=true;$('.sp-auth-error').textContent=await unlockSettings($('#sp-pin').value,$('#sp-pin-confirm').value);}catch(error){$('.sp-auth-error').textContent=error.message;}finally{if(button)button.disabled=false;}});
       $('.sp-auth-cancel').addEventListener('click',lockPublic);
       $('.sp-save').addEventListener('click',safeAction(saveAssignmentDraft));
@@ -587,7 +620,7 @@
         if(event.ctrlKey&&!event.altKey&&event.code==='KeyS'&&teacherUnlocked){event.preventDefault();saveClassFile();return;}
         if(event.key==='Escape'){event.preventDefault();commandEpoch+=1;if(activeShow)leaveStage(!activeShow.finished);else lockPublic();}
       });
-      window.addEventListener('blur',()=>{if(teacherUnlocked&&!activeShow&&!nativeDialogActive)lockPublic();});
+      window.addEventListener('blur',()=>{brandTaps=[];if((teacherUnlocked||!$('.sp-auth').hidden)&&!activeShow&&!nativeDialogActive)lockPublic();});
       window.addEventListener('pagehide',()=>{if(activeShow){activeShow.finished=true;stopRunWork(activeShow);activeShow=null;}lockPublic();});
       ['student','desk','group'].forEach(value=>$('.sg-mode-'+value).addEventListener('click',()=>{mode=value;selectedId=null;pendingId=null;render();}));
       $('.sg-add').addEventListener('click',()=>{
@@ -610,7 +643,8 @@
       $('.sg-clear-empty').addEventListener('click',()=>{const removed=seats.filter(seat=>!seat.temporary&&!seat.studentId).length;if(!removed)return;pushSnapshot();seats=seats.filter(seat=>seat.temporary||seat.studentId);finishChange('빈 일반 책상 '+removed+'개를 삭제했습니다.');});
       $('.sg-undo').addEventListener('click',()=>{
         if(!history.length)return;const previous=history.pop();({students,seats,serial,worldHeight,deskWidth,layoutKind,lineCounts,groupCounts,groupColumns,appliedInnerGap,appliedOuterGap}=previous);
-        namesInput.value=students.map(student=>student.name).join('\n');draftLines=[...lineCounts];draftGroups=[...groupCounts];draftColumns=groupColumns;
+        groupExtraPositions=normalizeExtraPositions(groupCounts,previous.groupExtraPositions);
+        namesInput.value=students.map(student=>student.name).join('\n');draftLines=[...lineCounts];draftGroups=[...groupCounts];draftExtraPositions=[...groupExtraPositions];draftColumns=groupColumns;
         $('#sg-inner-gap').value=String(appliedInnerGap);$('#sg-outer-gap').value=String(appliedOuterGap);$('#sg-inner-value').textContent=String(appliedInnerGap);$('#sg-outer-value').textContent=String(appliedOuterGap);
         syncDraftControls();switchTab(layoutKind);updateImportCount();mode=layoutKind==='groups'?'group':'student';finishChange('이전 배치로 되돌렸습니다.');
       });
@@ -644,7 +678,7 @@
         });
       }
       $('.sg-print-open').addEventListener('click',()=>{$('.sg-work').hidden=true;$('.sg-print').hidden=false;renderPrint();});$('.sg-print-close').addEventListener('click',()=>{$('.sg-print').hidden=true;$('.sg-work').hidden=false;});$('#sg-print-type').addEventListener('change',renderPrint);
-      installGeometry(groupGeometry(groupCounts,appliedInnerGap,appliedOuterGap,groupColumns));
+      installGeometry(groupGeometry(groupCounts,appliedInnerGap,appliedOuterGap,groupColumns,groupExtraPositions));
       seats.push({id:'t-left',x:185,y:101,temporary:true,studentId:null,groupId:null},{id:'t-right',x:815,y:101,temporary:true,studentId:null,groupId:null});
       async function initialize(){
         try{

@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const {validateState} = require('../desktop/validation.cjs');
 
 function loadEngine() {
   const source = fs.readFileSync(path.join(__dirname, '../app/renderer.js'), 'utf8');
@@ -14,17 +15,20 @@ function loadEngine() {
   const marker = "      room.addEventListener('pointerdown'";
   assert.ok(source.includes(marker), 'renderer event boundary remains identifiable');
   const nodes = new Map();
+  let created = 0;
   const node = key => {
     if (!nodes.has(key)) nodes.set(key, {
       value: '', checked: false, hidden: true, textContent: '', options: [],
+      children: [], listeners: {},
       style: {setProperty() {}}, classList: {add() {}, remove() {}, toggle() {}},
-      replaceChildren() {}, appendChild() {}, setAttribute() {}, focus() {},
+      replaceChildren() {this.children = [];}, appendChild(child) {this.children.push(child);}, setAttribute() {}, focus() {},
+      addEventListener(type, listener) {this.listeners[type] = listener;},
       querySelectorAll() {return [];}, querySelector() {return null;}
     });
     return nodes.get(key);
   };
   const context = {
-    document: {getElementById() {return {querySelector: node};}},
+    document: {getElementById() {return {querySelector: node, querySelectorAll() {return [];}};}, createElement() {return node('created-' + (++created));}},
     window: {seaton: {}, matchMedia() {return {matches: false};}},
     setTimeout, clearTimeout
   };
@@ -34,20 +38,28 @@ function loadEngine() {
     finishChange = () => {};
     globalThis.engine = {
       parseNames, lineGeometry, groupShape, groupGeometry, displayPoint,
-      installGeometry, snapshot, transfer, movingSeats, moveCollection,
+      installGeometry, snapshot, loadState, transfer, movingSeats, moveCollection,
       randomPlan, assignmentsFrom, completePlanError, shouldShow, pendingStudents,
       setup(counts = [4, 5, 4, 4, 5, 4]) {
-        students = Array.from({length: 26}, (_, i) => ({id: 'p' + i, name: '학생' + (i + 1)}));
+        students = Array.from({length: counts.reduce((sum, count) => sum + count, 0)}, (_, i) => ({id: 'p' + i, name: '학생' + (i + 1)}));
         seats = []; serial = 0; history = []; mode = 'group';
-        groupCounts = [...counts];
+        layoutKind = 'groups'; groupCounts = [...counts]; groupExtraPositions = normalizeExtraPositions(counts);
         installGeometry(groupGeometry(counts, 8, 70, 3));
         seats.push({...newSeat(210, 101), temporary: true}, {...newSeat(790, 101), temporary: true});
       },
       mutate(fn) {fn(seats, students);},
       setMode(value) {mode = value;},
+      configureGroups(counts, positions, columns = 3) {
+        draftKind = 'groups'; draftGroups = [...counts]; draftExtraPositions = [...positions]; draftColumns = columns;
+        $('#sg-inner-gap').value = '8'; $('#sg-outer-gap').value = '70';
+      },
+      draftPositions() {return [...draftExtraPositions];},
       historyCount() {return history.length;}
     };
+    ${source.slice(source.indexOf("      $('.sg-apply').addEventListener"), source.indexOf("      $('.sg-shuffle').addEventListener"))}
+    ${source.slice(source.indexOf("      $('.sg-undo').addEventListener"), source.indexOf("      $('.sg-view-student').addEventListener"))}
   })();`, context);
+  context.engine.click = selector => node(selector).listeners.click({});
   return context.engine;
 }
 
@@ -96,6 +108,80 @@ test('group reflow preserves seat IDs and assigned students while changing posit
   assert.deepEqual(after.seats.map(s => s.id), before.seats.map(s => s.id));
   assert.notDeepEqual(geometry(after), geometry(before));
   assert.deepEqual(plain(after.seats.filter(s => s.temporary)), plain(before.seats.filter(s => s.temporary)));
+});
+
+test('odd groups put the extra desk in front, behind, left or right while retaining paired desks', () => {
+  const e = loadEngine();
+  for (const count of [3, 5, 7]) {
+    for (const position of ['front', 'back', 'left', 'right']) {
+      const shape = e.groupShape(count, 8, position), paired = shape.points.slice(0, -1), extra = shape.points.at(-1);
+      const xs = paired.map(point => point.x), ys = paired.map(point => point.y);
+      assert.equal(shape.points.length, count);
+      if (position === 'front' || position === 'back') {
+        assert.equal(extra.x, (Math.min(...xs) + Math.max(...xs)) / 2);
+        assert.ok(position === 'front' ? extra.y < Math.min(...ys) : extra.y > Math.max(...ys));
+      } else {
+        assert.equal(extra.y, (Math.min(...ys) + Math.max(...ys)) / 2);
+        assert.ok(position === 'left' ? extra.x < Math.min(...xs) : extra.x > Math.max(...xs));
+      }
+      assert.equal(shape.width, Math.max(...shape.points.map(point => point.x)) + 105);
+      assert.equal(shape.height, Math.max(...shape.points.map(point => point.y)) + 54);
+    }
+  }
+  for (const count of [1, 2, 4, 6, 8]) {
+    const regular = plain(e.groupShape(count, 8));
+    for (const position of ['front', 'back', 'left']) assert.deepEqual(plain(e.groupShape(count, 8, position)), regular);
+  }
+});
+
+test('mixed group shapes reserve their full bounds with one, two or three groups across', () => {
+  const e = loadEngine();
+  const counts = [5, 7, 3, 8, 1, 6, 2, 4, 5, 5], positions = ['front', 'right', 'left', 'back', 'front', 'right', 'left', 'back', 'back', 'front'];
+  for (const columns of [1, 2, 3]) {
+    for (const [inner, outer] of [[0, 24], [8, 70], [22, 120]]) {
+      const plan = e.groupGeometry(counts, inner, outer, columns, positions);
+      assert.equal(plan.points.length, 46);
+      for (let i = 0; i < plan.points.length; i++) {
+        const a = plan.points[i];
+        assert.ok(a.x - plan.width / 2 >= -1e-9 && a.x + plan.width / 2 <= 1000 + 1e-9);
+        assert.ok(a.y - 27 >= 140 && a.y + 27 < plan.height);
+        for (let j = i + 1; j < plan.points.length; j++) {
+          const b = plan.points[j];
+          assert.ok(Math.abs(a.x - b.x) + 1e-9 >= plan.width || Math.abs(a.y - b.y) + 1e-9 >= 54, `${columns} columns: ${i} and ${j} overlap`);
+        }
+      }
+    }
+  }
+});
+
+test('shape settings survive save/load and undo without changing student assignments or seat IDs', () => {
+  const e = loadEngine(), counts = [5, 5, 4, 4, 4, 4], positions = ['front', 'back', 'left', 'right', 'front', 'back'];
+  e.setup(counts);
+  const original = plain(e.snapshot());
+  e.configureGroups(counts, positions); e.click('.sg-apply');
+  const changed = plain(e.snapshot());
+  assert.deepEqual(changed.groupExtraPositions, positions);
+  assert.deepEqual(changed.seats.map(seat => [seat.id, seat.studentId]), original.seats.map(seat => [seat.id, seat.studentId]));
+  assert.notDeepEqual(changed.seats.map(seat => [seat.x, seat.y]), original.seats.map(seat => [seat.x, seat.y]));
+  const loaded = loadEngine(); loaded.loadState(validateState(changed));
+  assert.deepEqual(plain(loaded.snapshot()), changed);
+  assert.deepEqual(plain(loaded.draftPositions()), positions);
+  e.click('.sg-undo');
+  assert.deepEqual(plain(e.snapshot()), original);
+  assert.deepEqual(plain(e.draftPositions()), original.groupExtraPositions);
+});
+
+test('old seat plans keep their right-side extra desk and invalid new shape metadata is rejected', () => {
+  const e = loadEngine(); e.setup();
+  const saved = plain(e.snapshot()); delete saved.groupExtraPositions;
+  const checked = validateState(saved);
+  assert.deepEqual(checked.groupExtraPositions, Array(saved.groupCounts.length).fill('right'));
+  e.loadState(saved);
+  assert.deepEqual(plain(e.snapshot().groupExtraPositions), checked.groupExtraPositions);
+  assert.deepEqual(plain(e.snapshot().seats), saved.seats, 'loading does not recalculate old coordinates');
+  for (const positions of [null, [], ['front'], Array(saved.groupCounts.length).fill('diagonal')]) {
+    assert.throws(() => validateState({...saved, groupExtraPositions: positions}), /모둠 추가석/);
+  }
 });
 
 test('moving a group preserves all relative desk offsets and clamps at the room edge', () => {
